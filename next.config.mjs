@@ -1,7 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   serverExternalPackages: ["@prisma/client"],
-  turbopack: {},
+  turbopack: {
+    root: __dirname,
+  },
 };
 
 export default nextConfig;
