@@ -3,9 +3,12 @@ import { NextRequest } from "next/server";
 const WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? "60000");
 const MAX_REQUESTS = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS ?? "5");
 
+// True only if DATABASE_URL looks like a real Neon/Postgres URL (not a placeholder)
 const DB_AVAILABLE =
   !!process.env.DATABASE_URL &&
-  process.env.DATABASE_URL.startsWith("postgresql");
+  process.env.DATABASE_URL.startsWith("postgresql") &&
+  !process.env.DATABASE_URL.includes("@HOST/") &&
+  !process.env.DATABASE_URL.includes("USER:PASSWORD");
 
 export async function getClientIdentifier(req: NextRequest): Promise<string> {
   const forwarded = req.headers.get("x-forwarded-for");

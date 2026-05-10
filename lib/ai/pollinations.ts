@@ -9,13 +9,17 @@ interface Message {
   content: string;
 }
 
-// OpenAI-compatible envelope Pollinations returns
+// OpenAI-compatible envelope that Pollinations /openai returns
 interface OpenAIEnvelope {
   choices?: Array<{
     message?: {
       content?: string | null;
     };
+    text?: string; // some variants return text directly on choice
   }>;
+  // some Pollinations variants surface content at top level
+  content?: string;
+  text?: string;
 }
 
 export async function generateResume(
@@ -27,25 +31,24 @@ export async function generateResume(
     { role: "user", content: buildUserPrompt(cvText, jobDescription) },
   ];
 
+  // POST /openai is OpenAI-compatible — use standard OpenAI params only
+  // json:true is only for the GET endpoint, NOT the POST /openai endpoint
   const body = {
     model: "openai",
     messages,
     temperature: 0.3,
     seed: 42,
-    json: true,           // Pollinations JSON mode flag
-    referrer: REFERRER,   // Identifies our app for rate limit tier
     max_tokens: 4000,
+    referrer: REFERRER,
   };
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
-    // Referrer header for web-app identification
     Referer: `https://${REFERRER}`,
     Origin: `https://${REFERRER}`,
   };
 
-  // Attach bearer token if configured
   const token = process.env.POLLINATIONS_API_TOKEN;
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -60,19 +63,33 @@ export async function generateResume(
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "Unknown error");
-    throw new Error(
-      `AI generation failed (${response.status}): ${errorText}`
+    throw new Error(`AI generation failed (${response.status}): ${errorText}`);
+  }
+
+  const envelope = (await response.json()) as OpenAIEnvelope;
+
+  // Log in dev so we can see the raw shape if something goes wrong
+  if (process.env.NODE_ENV === "development") {
+    console.log("[pollinations] envelope keys:", Object.keys(envelope));
+    console.log("[pollinations] choices length:", envelope.choices?.length);
+    console.log(
+      "[pollinations] content preview:",
+      envelope.choices?.[0]?.message?.content?.slice(0, 200)
     );
   }
 
-  // Pollinations returns an OpenAI-compatible envelope:
-  // { choices: [{ message: { content: "<JSON string>" } }] }
-  const envelope = (await response.json()) as OpenAIEnvelope;
+  // Extract content — try every known response shape
+  const rawContent =
+    envelope?.choices?.[0]?.message?.content ??
+    envelope?.choices?.[0]?.text ??
+    envelope?.content ??
+    envelope?.text ??
+    null;
 
-  const rawContent = envelope?.choices?.[0]?.message?.content;
-
-  if (!rawContent || typeof rawContent !== "string") {
-    throw new Error("AI returned an empty response. Please try again.");
+  if (!rawContent || typeof rawContent !== "string" || rawContent.trim() === "") {
+    throw new Error(
+      "AI returned an empty response. Please try again in a moment."
+    );
   }
 
   const parsed = parseResumeJSON(rawContent);

@@ -8,7 +8,9 @@ export const maxDuration = 60;
 
 const DB_AVAILABLE =
   !!process.env.DATABASE_URL &&
-  process.env.DATABASE_URL.startsWith("postgresql");
+  process.env.DATABASE_URL.startsWith("postgresql") &&
+  !process.env.DATABASE_URL.includes("@HOST/") &&
+  !process.env.DATABASE_URL.includes("USER:PASSWORD");
 
 export async function POST(req: NextRequest) {
   try {
