@@ -2,7 +2,7 @@
 const nextConfig = {
   serverExternalPackages: ["@prisma/client"],
   turbopack: {
-    root: __dirname,
+    root: import.meta.dirname,
   },
 };
 
