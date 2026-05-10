@@ -1,98 +1,87 @@
 import { ResumeData } from "@/types";
 import { SYSTEM_PROMPT, buildUserPrompt } from "./prompts";
 
-const POLLINATIONS_URL =
-  process.env.POLLINATIONS_AI_URL ?? "https://text.pollinations.ai";
+const BASE_URL = "https://text.pollinations.ai";
+const REFERRER = "atsresume.xyz";
 
-interface PollinationsMessage {
+interface Message {
   role: "system" | "user" | "assistant";
   content: string;
 }
 
-// OpenAI-compatible response envelope that Pollinations returns
-interface OpenAIResponse {
+// OpenAI-compatible envelope Pollinations returns
+interface OpenAIEnvelope {
   choices?: Array<{
     message?: {
-      content?: string;
+      content?: string | null;
     };
   }>;
-  // Pollinations sometimes returns content directly
-  content?: string;
 }
 
 export async function generateResume(
   cvText: string,
   jobDescription: string
 ): Promise<ResumeData> {
-  const messages: PollinationsMessage[] = [
+  const messages: Message[] = [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "user", content: buildUserPrompt(cvText, jobDescription) },
   ];
 
-  const requestBody = {
+  const body = {
     model: "openai",
     messages,
     temperature: 0.3,
     seed: 42,
-    response_format: { type: "json_object" },
+    json: true,           // Pollinations JSON mode flag
+    referrer: REFERRER,   // Identifies our app for rate limit tier
+    max_tokens: 4000,
   };
 
-  const response = await fetch(`${POLLINATIONS_URL}/openai`, {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    // Referrer header for web-app identification
+    Referer: `https://${REFERRER}`,
+    Origin: `https://${REFERRER}`,
+  };
+
+  // Attach bearer token if configured
+  const token = process.env.POLLINATIONS_API_TOKEN;
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${BASE_URL}/openai`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(requestBody),
+    headers,
+    body: JSON.stringify(body),
     signal: AbortSignal.timeout(90000),
   });
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "Unknown error");
     throw new Error(
-      `AI generation failed: ${response.status} ${response.statusText} - ${errorText}`
+      `AI generation failed (${response.status}): ${errorText}`
     );
   }
 
-  const rawText = await response.text();
+  // Pollinations returns an OpenAI-compatible envelope:
+  // { choices: [{ message: { content: "<JSON string>" } }] }
+  const envelope = (await response.json()) as OpenAIEnvelope;
 
-  // Extract the actual content string from the OpenAI-compatible envelope
-  const contentStr = extractContent(rawText);
+  const rawContent = envelope?.choices?.[0]?.message?.content;
 
-  const parsed = parseResumeJSON(contentStr);
+  if (!rawContent || typeof rawContent !== "string") {
+    throw new Error("AI returned an empty response. Please try again.");
+  }
+
+  const parsed = parseResumeJSON(rawContent);
   validateResumeData(parsed);
   return parsed;
 }
 
-function extractContent(rawText: string): string {
-  // Try to parse as OpenAI response envelope first
-  try {
-    const envelope = JSON.parse(rawText) as OpenAIResponse;
-
-    // Standard OpenAI format: choices[0].message.content
-    const choice = envelope?.choices?.[0]?.message?.content;
-    if (choice && typeof choice === "string") {
-      return choice;
-    }
-
-    // Some Pollinations variants return top-level content
-    if (envelope?.content && typeof envelope.content === "string") {
-      return envelope.content;
-    }
-
-    // If the envelope itself has the resume keys, it IS the resume data
-    if ("candidate" in envelope || "experience" in envelope) {
-      return rawText;
-    }
-  } catch {
-    // rawText is not a JSON envelope — treat as raw content
-  }
-
-  return rawText;
-}
-
 function parseResumeJSON(content: string): unknown {
-  // Strip markdown code fences if present
+  // Strip markdown code fences if the model wrapped the JSON
   const stripped = content
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```\s*$/i, "")
@@ -101,15 +90,13 @@ function parseResumeJSON(content: string): unknown {
   try {
     return JSON.parse(stripped);
   } catch {
-    // Try extracting the first {...} block
-    const jsonMatch = stripped.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error(
-        "AI did not return valid JSON. Please try again."
-      );
+    // Fall back to extracting the first {...} block
+    const match = stripped.match(/\{[\s\S]*\}/);
+    if (!match) {
+      throw new Error("AI did not return valid JSON. Please try again.");
     }
     try {
-      return JSON.parse(jsonMatch[0]);
+      return JSON.parse(match[0]);
     } catch {
       throw new Error("Failed to parse AI response. Please try again.");
     }
