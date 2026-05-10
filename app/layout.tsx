@@ -43,10 +43,10 @@ export default function RootLayout({
     <html lang="en" className={inter.variable}>
       <body className="min-h-screen">
         {children}
-        {/* Paystack inline */}
+        {/* Paystack inline — afterInteractive ensures it loads before user interaction */}
         <Script
           src="https://js.paystack.co/v1/inline.js"
-          strategy="lazyOnload"
+          strategy="afterInteractive"
         />
       </body>
     </html>

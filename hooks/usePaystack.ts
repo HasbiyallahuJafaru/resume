@@ -17,9 +17,30 @@ interface PaystackOptions {
   amount: number;
   currency: string;
   ref: string;
+  label?: string;
   metadata?: Record<string, unknown>;
   onSuccess: (response: { reference: string }) => void;
   onCancel: () => void;
+}
+
+// Wait for the Paystack script to finish loading (max 10s)
+function waitForPaystack(timeoutMs = 10000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof window !== "undefined" && window.PaystackPop) {
+      resolve();
+      return;
+    }
+    const start = Date.now();
+    const interval = setInterval(() => {
+      if (window.PaystackPop) {
+        clearInterval(interval);
+        resolve();
+      } else if (Date.now() - start > timeoutMs) {
+        clearInterval(interval);
+        reject(new Error("Paystack failed to load. Please refresh and try again."));
+      }
+    }, 100);
+  });
 }
 
 export function usePaystack() {
@@ -29,9 +50,7 @@ export function usePaystack() {
   const initiatePayment = useCallback(
     async (email: string) => {
       const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
-      const amount = parseInt(
-        process.env.NEXT_PUBLIC_PAYMENT_AMOUNT ?? "500000"
-      );
+      const amount = parseInt(process.env.NEXT_PUBLIC_PAYMENT_AMOUNT ?? "500000");
       const currency = process.env.NEXT_PUBLIC_PAYMENT_CURRENCY ?? "NGN";
 
       if (!publicKey) {
@@ -39,9 +58,11 @@ export function usePaystack() {
         return;
       }
 
-      // Ensure Paystack script is loaded
-      if (!window.PaystackPop) {
-        setError("Payment system failed to load. Please refresh and try again.");
+      // Wait for Paystack script to be ready
+      try {
+        await waitForPaystack();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Payment failed to load.");
         return;
       }
 
@@ -55,13 +76,15 @@ export function usePaystack() {
         amount,
         currency,
         ref: reference,
-        metadata: { sessionId },
+        label: "ResumeForge — Resume + Cover Letter",
+        metadata: { sessionId, app: "resumeforge" },
         onSuccess: async (response) => {
+          // Backend verifies the reference and issues a signed unlock token
           await verifyPayment(response.reference, sessionId, unlock, setError);
         },
         onCancel: () => {
+          // User closed the popup — silently go back to preview, no error
           setStep("preview");
-          setError("Payment was cancelled.");
         },
       });
 
@@ -90,7 +113,8 @@ async function verifyPayment(
 
     if (!response.ok || !data.success) {
       setError(
-        data.error ?? "Payment verification failed. Please contact support."
+        data.error ??
+          `Payment verification failed. Please contact support with reference: ${reference}`
       );
       return;
     }
@@ -100,8 +124,7 @@ async function verifyPayment(
     }
   } catch {
     setError(
-      "Could not verify payment. Please contact support with your reference: " +
-        reference
+      `Could not verify payment. Please contact support with reference: ${reference}`
     );
   }
 }
