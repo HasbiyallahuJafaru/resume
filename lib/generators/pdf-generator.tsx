@@ -2,30 +2,34 @@
 
 import { ResumeData, TemplateId } from "@/types";
 
-// Lazy import react-pdf to avoid SSR issues
 export async function generatePDF(
   data: ResumeData,
   template: TemplateId
 ): Promise<Blob> {
-  const { pdf } = await import("@react-pdf/renderer");
-  const { createElement } = await import("react");
+  const { pdf, Document } = await import("@react-pdf/renderer");
+  const React = await import("react");
 
-  let DocumentComponent: React.ComponentType<{ data: ResumeData }>;
+  type DocComponent = React.ComponentType<{ data: ResumeData }>;
+
+  let DocComp: DocComponent;
 
   switch (template) {
     case "executive":
-      DocumentComponent = (await import("@/templates/pdf/ExecutivePDF"))
-        .default;
+      DocComp = (await import("@/templates/pdf/ExecutivePDF")).default;
       break;
     case "modern-professional":
-      DocumentComponent = (await import("@/templates/pdf/ModernPDF")).default;
+      DocComp = (await import("@/templates/pdf/ModernPDF")).default;
       break;
     default:
-      DocumentComponent = (await import("@/templates/pdf/MinimalATSPDF"))
-        .default;
+      DocComp = (await import("@/templates/pdf/MinimalATSPDF")).default;
   }
 
-  const element = createElement(DocumentComponent, { data });
+  // Each template returns a <Document> as its root, which satisfies react-pdf's pdf()
+  // We cast through unknown to satisfy the strict DocumentProps typing
+  const element = React.createElement(DocComp, { data }) as unknown as React.ReactElement<
+    React.ComponentProps<typeof Document>
+  >;
+
   const blob = await pdf(element).toBlob();
   return blob;
 }

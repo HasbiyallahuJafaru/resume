@@ -231,8 +231,13 @@ export async function generateDOCX(data: ResumeData): Promise<Blob> {
     ],
   });
 
-  const buffer = await Packer.toBuffer(doc);
-  return new Blob([buffer], {
+  const base64 = await Packer.toBase64String(doc);
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], {
     type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   });
 }

@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
         unlockToken,
         amount: paystackData.data.amount,
         email: paystackData.data?.customer?.email,
-        metadata: paystackData.data?.metadata as Record<string, unknown>,
+        metadata: paystackData.data?.metadata ? JSON.parse(JSON.stringify(paystackData.data.metadata)) : undefined,
       },
       create: {
         reference,
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
         verified: true,
         unlockToken,
         email: paystackData.data?.customer?.email,
-        metadata: paystackData.data?.metadata as Record<string, unknown>,
+        metadata: paystackData.data?.metadata ? JSON.parse(JSON.stringify(paystackData.data.metadata)) : undefined,
       },
     });
 

@@ -3,11 +3,10 @@
 export async function parsePDF(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
 
-  // Dynamic import to avoid SSR issues
   const pdfjsLib = await import("pdfjs-dist");
 
-  // Set worker source
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+  // Use unpkg CDN which reliably serves all versions
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
@@ -18,10 +17,8 @@ export async function parsePDF(file: File): Promise<string> {
     const textContent = await page.getTextContent();
 
     const pageText = textContent.items
-      .filter((item): item is { str: string; transform: number[] } =>
-        "str" in item && typeof (item as { str: unknown }).str === "string"
-      )
-      .map((item) => item.str)
+      .filter((item) => "str" in item)
+      .map((item) => (item as { str: string }).str)
       .join(" ");
 
     textParts.push(pageText);

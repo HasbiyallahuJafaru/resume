@@ -5,7 +5,7 @@ import { GenerateResumeSchema } from "@/lib/schemas";
 import { checkRateLimit, getClientIdentifier } from "@/lib/rate-limit";
 import { sanitizeText } from "@/lib/utils";
 
-export const maxDuration = 90;
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
         data: {
           sessionId,
           status: "COMPLETE",
-          outputData: resumeData as Record<string, unknown>,
+          outputData: JSON.parse(JSON.stringify(resumeData)),
           payment: {
             create: {
               reference: `preview_${sessionId}_${Date.now()}`,
