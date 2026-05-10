@@ -1,0 +1,12 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "prisma generate && next build",
+  "functions": {
+    "app/api/generate/route.ts": {
+      "maxDuration": 90
+    },
+    "app/api/payment/verify/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}

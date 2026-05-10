@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL")
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  reference   String   @unique
+  email       String?
+  amount      Int
+  currency    String   @default("NGN")
+  status      PaymentStatus @default(PENDING)
+  verified    Boolean  @default(false)
+  unlockToken String?  @unique
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  generation Generation?
+
+  @@index([reference])
+  @@index([unlockToken])
+}
+
+model Generation {
+  id          String   @id @default(cuid())
+  paymentId   String   @unique
+  payment     Payment  @relation(fields: [paymentId], references: [id])
+  sessionId   String
+  template    String   @default("minimal-ats")
+  status      GenerationStatus @default(PENDING)
+  inputHash   String?
+  outputData  Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([sessionId])
+}
+
+model RateLimit {
+  id          String   @id @default(cuid())
+  identifier  String   @unique
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  ABANDONED
+}
+
+enum GenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETE
+  FAILED
+}
