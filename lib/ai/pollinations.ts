@@ -9,12 +9,15 @@ interface PollinationsMessage {
   content: string;
 }
 
-interface PollinationsRequest {
-  model: string;
-  messages: PollinationsMessage[];
-  temperature: number;
-  seed?: number;
-  jsonMode?: boolean;
+// OpenAI-compatible response envelope that Pollinations returns
+interface OpenAIResponse {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+  // Pollinations sometimes returns content directly
+  content?: string;
 }
 
 export async function generateResume(
@@ -26,12 +29,12 @@ export async function generateResume(
     { role: "user", content: buildUserPrompt(cvText, jobDescription) },
   ];
 
-  const requestBody: PollinationsRequest = {
+  const requestBody = {
     model: "openai",
     messages,
     temperature: 0.3,
     seed: 42,
-    jsonMode: true,
+    response_format: { type: "json_object" },
   };
 
   const response = await fetch(`${POLLINATIONS_URL}/openai`, {
@@ -53,25 +56,64 @@ export async function generateResume(
 
   const rawText = await response.text();
 
-  let parsed: ResumeData;
-  try {
-    // Try direct parse first
-    parsed = JSON.parse(rawText);
-  } catch {
-    // Extract JSON from response if wrapped in markdown or prose
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("AI response did not contain valid JSON");
-    }
-    try {
-      parsed = JSON.parse(jsonMatch[0]);
-    } catch {
-      throw new Error("Failed to parse AI response as JSON");
-    }
-  }
+  // Extract the actual content string from the OpenAI-compatible envelope
+  const contentStr = extractContent(rawText);
 
+  const parsed = parseResumeJSON(contentStr);
   validateResumeData(parsed);
   return parsed;
+}
+
+function extractContent(rawText: string): string {
+  // Try to parse as OpenAI response envelope first
+  try {
+    const envelope = JSON.parse(rawText) as OpenAIResponse;
+
+    // Standard OpenAI format: choices[0].message.content
+    const choice = envelope?.choices?.[0]?.message?.content;
+    if (choice && typeof choice === "string") {
+      return choice;
+    }
+
+    // Some Pollinations variants return top-level content
+    if (envelope?.content && typeof envelope.content === "string") {
+      return envelope.content;
+    }
+
+    // If the envelope itself has the resume keys, it IS the resume data
+    if ("candidate" in envelope || "experience" in envelope) {
+      return rawText;
+    }
+  } catch {
+    // rawText is not a JSON envelope — treat as raw content
+  }
+
+  return rawText;
+}
+
+function parseResumeJSON(content: string): unknown {
+  // Strip markdown code fences if present
+  const stripped = content
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+
+  try {
+    return JSON.parse(stripped);
+  } catch {
+    // Try extracting the first {...} block
+    const jsonMatch = stripped.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error(
+        "AI did not return valid JSON. Please try again."
+      );
+    }
+    try {
+      return JSON.parse(jsonMatch[0]);
+    } catch {
+      throw new Error("Failed to parse AI response. Please try again.");
+    }
+  }
 }
 
 function validateResumeData(data: unknown): asserts data is ResumeData {

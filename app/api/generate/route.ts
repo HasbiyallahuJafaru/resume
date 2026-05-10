@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { generateResume } from "@/lib/ai/pollinations";
 import { GenerateResumeSchema } from "@/lib/schemas";
 import { checkRateLimit, getClientIdentifier } from "@/lib/rate-limit";
 import { sanitizeText } from "@/lib/utils";
 
 export const maxDuration = 60;
+
+const DB_AVAILABLE =
+  !!process.env.DATABASE_URL &&
+  process.env.DATABASE_URL.startsWith("postgresql");
 
 export async function POST(req: NextRequest) {
   try {
@@ -48,22 +51,26 @@ export async function POST(req: NextRequest) {
 
     const resumeData = await generateResume(cleanCv, cleanJd);
 
-    await prisma.generation
-      .create({
-        data: {
-          sessionId,
-          status: "COMPLETE",
-          outputData: JSON.parse(JSON.stringify(resumeData)),
-          payment: {
-            create: {
-              reference: `preview_${sessionId}_${Date.now()}`,
-              amount: 0,
-              status: "PENDING",
+    // Persist generation record only when DB is configured
+    if (DB_AVAILABLE) {
+      const { prisma } = await import("@/lib/prisma");
+      await prisma.generation
+        .create({
+          data: {
+            sessionId,
+            status: "COMPLETE",
+            outputData: JSON.parse(JSON.stringify(resumeData)),
+            payment: {
+              create: {
+                reference: `preview_${sessionId}_${Date.now()}`,
+                amount: 0,
+                status: "PENDING",
+              },
             },
           },
-        },
-      })
-      .catch(() => null);
+        })
+        .catch(() => null);
+    }
 
     return NextResponse.json({ success: true, data: resumeData });
   } catch (error) {

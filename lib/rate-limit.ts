@@ -1,8 +1,11 @@
-import { prisma } from "./prisma";
 import { NextRequest } from "next/server";
 
 const WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? "60000");
 const MAX_REQUESTS = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS ?? "5");
+
+const DB_AVAILABLE =
+  !!process.env.DATABASE_URL &&
+  process.env.DATABASE_URL.startsWith("postgresql");
 
 export async function getClientIdentifier(req: NextRequest): Promise<string> {
   const forwarded = req.headers.get("x-forwarded-for");
@@ -17,9 +20,18 @@ export async function checkRateLimit(identifier: string): Promise<{
   resetAt: Date;
 }> {
   const now = new Date();
+  const resetAt = new Date(now.getTime() + WINDOW_MS);
+
+  // Skip DB entirely if no real DATABASE_URL configured
+  if (!DB_AVAILABLE) {
+    return { allowed: true, remaining: MAX_REQUESTS, resetAt };
+  }
+
   const windowStart = new Date(now.getTime() - WINDOW_MS);
 
   try {
+    const { prisma } = await import("./prisma");
+
     const record = await prisma.rateLimit.findUnique({
       where: { identifier },
     });
@@ -34,7 +46,7 @@ export async function checkRateLimit(identifier: string): Promise<{
       return {
         allowed: true,
         remaining: MAX_REQUESTS - 1,
-        resetAt: new Date(now.getTime() + WINDOW_MS),
+        resetAt,
       };
     }
 
@@ -57,11 +69,7 @@ export async function checkRateLimit(identifier: string): Promise<{
       resetAt: new Date(record.windowStart.getTime() + WINDOW_MS),
     };
   } catch {
-    // Fail open if DB is unavailable
-    return {
-      allowed: true,
-      remaining: MAX_REQUESTS,
-      resetAt: new Date(now.getTime() + WINDOW_MS),
-    };
+    // Fail open — rate limiting is best-effort
+    return { allowed: true, remaining: MAX_REQUESTS, resetAt };
   }
 }
