@@ -1,78 +1,34 @@
 import { NextRequest } from "next/server";
 
 const WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? "60000");
-const MAX_REQUESTS = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS ?? "5");
+const MAX_REQUESTS = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS ?? "10");
 
-// True only if DATABASE_URL looks like a real Neon/Postgres URL (not a placeholder)
-const DB_AVAILABLE =
-  !!process.env.DATABASE_URL &&
-  process.env.DATABASE_URL.startsWith("postgresql") &&
-  !process.env.DATABASE_URL.includes("@HOST/") &&
-  !process.env.DATABASE_URL.includes("USER:PASSWORD");
+// In-memory store — resets on server restart, good enough for serverless
+const store = new Map<string, { count: number; windowStart: number }>();
 
-export async function getClientIdentifier(req: NextRequest): Promise<string> {
+export function getClientIdentifier(req: NextRequest): string {
   const forwarded = req.headers.get("x-forwarded-for");
   const realIp = req.headers.get("x-real-ip");
-  const ip = forwarded?.split(",")[0]?.trim() ?? realIp ?? "unknown";
-  return ip;
+  return forwarded?.split(",")[0]?.trim() ?? realIp ?? "unknown";
 }
 
-export async function checkRateLimit(identifier: string): Promise<{
+export function checkRateLimit(identifier: string): {
   allowed: boolean;
   remaining: number;
   resetAt: Date;
-}> {
-  const now = new Date();
-  const resetAt = new Date(now.getTime() + WINDOW_MS);
+} {
+  const now = Date.now();
+  const entry = store.get(identifier);
 
-  // Skip DB entirely if no real DATABASE_URL configured
-  if (!DB_AVAILABLE) {
-    return { allowed: true, remaining: MAX_REQUESTS, resetAt };
+  if (!entry || now - entry.windowStart > WINDOW_MS) {
+    store.set(identifier, { count: 1, windowStart: now });
+    return { allowed: true, remaining: MAX_REQUESTS - 1, resetAt: new Date(now + WINDOW_MS) };
   }
 
-  const windowStart = new Date(now.getTime() - WINDOW_MS);
-
-  try {
-    const { prisma } = await import("./prisma");
-
-    const record = await prisma.rateLimit.findUnique({
-      where: { identifier },
-    });
-
-    if (!record || record.windowStart < windowStart) {
-      await prisma.rateLimit.upsert({
-        where: { identifier },
-        update: { count: 1, windowStart: now },
-        create: { identifier, count: 1, windowStart: now },
-      });
-
-      return {
-        allowed: true,
-        remaining: MAX_REQUESTS - 1,
-        resetAt,
-      };
-    }
-
-    if (record.count >= MAX_REQUESTS) {
-      return {
-        allowed: false,
-        remaining: 0,
-        resetAt: new Date(record.windowStart.getTime() + WINDOW_MS),
-      };
-    }
-
-    await prisma.rateLimit.update({
-      where: { identifier },
-      data: { count: record.count + 1 },
-    });
-
-    return {
-      allowed: true,
-      remaining: MAX_REQUESTS - record.count - 1,
-      resetAt: new Date(record.windowStart.getTime() + WINDOW_MS),
-    };
-  } catch {
-    // Fail open — rate limiting is best-effort
-    return { allowed: true, remaining: MAX_REQUESTS, resetAt };
+  if (entry.count >= MAX_REQUESTS) {
+    return { allowed: false, remaining: 0, resetAt: new Date(entry.windowStart + WINDOW_MS) };
   }
+
+  entry.count++;
+  return { allowed: true, remaining: MAX_REQUESTS - entry.count, resetAt: new Date(entry.windowStart + WINDOW_MS) };
 }

@@ -3,22 +3,20 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useAppStore } from "@/store/useAppStore";
-import { useGenerate } from "@/hooks/useGenerate";
 import Button from "@/components/ui/Button";
 
 export default function JobDescriptionForm() {
-  const { jobDescription, setJobDescription, setStep, isGenerating, error } =
-    useAppStore();
-  const { generate } = useGenerate();
+  const { jobDescription, setJobDescription, setStep, error, setError } = useAppStore();
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (jobDescription.trim().length < 50) {
       setLocalError("Please paste a complete job description (at least 50 characters).");
       return;
     }
     setLocalError(null);
-    await generate();
+    setError(null);
+    setStep("payment");
   };
 
   const displayError = error || localError;
@@ -38,7 +36,6 @@ export default function JobDescriptionForm() {
           onChange={(e) => setJobDescription(e.target.value)}
           placeholder="Paste the full job description here. Include the role title, responsibilities, requirements, and any qualifications listed..."
           className="w-full h-64 rounded-2xl border border-surface-3 bg-white p-4 text-sm text-ink placeholder:text-ink-disabled resize-none focus:outline-none focus:ring-2 focus:ring-ink focus:border-transparent transition-all"
-          disabled={isGenerating}
         />
         <p className="text-xs text-ink-tertiary mt-1.5 ml-1">
           {jobDescription.length} characters · More detail = better results
@@ -56,21 +53,16 @@ export default function JobDescriptionForm() {
       )}
 
       <div className="flex gap-3">
-        <Button
-          variant="secondary"
-          onClick={() => setStep("upload")}
-          disabled={isGenerating}
-        >
+        <Button variant="secondary" onClick={() => setStep("upload")}>
           Back
         </Button>
         <Button
           onClick={handleSubmit}
-          loading={isGenerating}
-          disabled={isGenerating || jobDescription.trim().length < 50}
+          disabled={jobDescription.trim().length < 50}
           className="flex-1"
           size="lg"
         >
-          {isGenerating ? "Analyzing..." : "Analyze & Generate"}
+          Continue to Payment
         </Button>
       </div>
     </motion.div>

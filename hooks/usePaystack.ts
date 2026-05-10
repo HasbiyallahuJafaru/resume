@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
+import { useGenerate } from "@/hooks/useGenerate";
 
 declare global {
   interface Window {
@@ -19,11 +20,10 @@ interface PaystackOptions {
   ref: string;
   label?: string;
   metadata?: Record<string, unknown>;
-  onSuccess: (response: { reference: string }) => void;
-  onCancel: () => void;
+  callback: (response: { reference: string; trans: string; status: string; message: string }) => void;
+  onClose: () => void;
 }
 
-// Wait for the Paystack script to finish loading (max 10s)
 function waitForPaystack(timeoutMs = 10000): Promise<void> {
   return new Promise((resolve, reject) => {
     if (typeof window !== "undefined" && window.PaystackPop) {
@@ -44,8 +44,8 @@ function waitForPaystack(timeoutMs = 10000): Promise<void> {
 }
 
 export function usePaystack() {
-  const { sessionId, setPaymentReference, setError, unlock, setStep } =
-    useAppStore();
+  const { sessionId, setPaymentReference, setError, setStep } = useAppStore();
+  const { generate } = useGenerate();
 
   const initiatePayment = useCallback(
     async (email: string) => {
@@ -58,7 +58,6 @@ export function usePaystack() {
         return;
       }
 
-      // Wait for Paystack script to be ready
       try {
         await waitForPaystack();
       } catch (err) {
@@ -68,7 +67,6 @@ export function usePaystack() {
 
       const reference = `rf_${sessionId}_${Date.now()}`;
       setPaymentReference(reference);
-      setStep("payment");
 
       const handler = window.PaystackPop.setup({
         key: publicKey,
@@ -78,53 +76,20 @@ export function usePaystack() {
         ref: reference,
         label: "ResumeForge — Resume + Cover Letter",
         metadata: { sessionId, app: "resumeforge" },
-        onSuccess: async (response) => {
-          // Backend verifies the reference and issues a signed unlock token
-          await verifyPayment(response.reference, sessionId, unlock, setError);
+        callback: (_response) => {
+          // Payment confirmed by Paystack — start AI generation immediately
+          generate();
         },
-        onCancel: () => {
-          // User closed the popup — silently go back to preview, no error
-          setStep("preview");
+        onClose: () => {
+          // User dismissed popup without paying — stay on payment step
+          setStep("payment");
         },
       });
 
       handler.openIframe();
     },
-    [sessionId, setPaymentReference, setError, unlock, setStep]
+    [sessionId, setPaymentReference, setError, setStep, generate]
   );
 
   return { initiatePayment };
-}
-
-async function verifyPayment(
-  reference: string,
-  sessionId: string,
-  unlock: (token: string) => void,
-  setError: (error: string | null) => void
-) {
-  try {
-    const response = await fetch("/api/payment/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reference, sessionId }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok || !data.success) {
-      setError(
-        data.error ??
-          `Payment verification failed. Please contact support with reference: ${reference}`
-      );
-      return;
-    }
-
-    if (data.unlockToken) {
-      unlock(data.unlockToken);
-    }
-  } catch {
-    setError(
-      `Could not verify payment. Please contact support with reference: ${reference}`
-    );
-  }
 }

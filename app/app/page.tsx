@@ -8,6 +8,7 @@ import FileUpload from "@/components/upload/FileUpload";
 import JobDescriptionForm from "@/components/job/JobDescriptionForm";
 import AnalyzingState from "@/components/analyzing/AnalyzingState";
 import ResumePreview from "@/components/preview/ResumePreview";
+import PaymentGate from "@/components/payment/PaymentGate";
 
 export default function AppPage() {
   const { step, reset } = useAppStore();
@@ -21,21 +22,17 @@ export default function AppPage() {
       title: "Paste the job description",
       subtitle: "The more detail you provide, the better the result",
     },
-    analyzing: {
-      title: "Analyzing your profile",
-      subtitle: "Our AI is working on your recruiter-grade resume",
-    },
-    preview: {
-      title: "Your resume is ready",
-      subtitle: "Review the improvements before downloading",
-    },
     payment: {
       title: "Unlock your resume",
-      subtitle: "One payment — full resume + cover letter + downloads",
+      subtitle: "One payment — full AI-generated resume + cover letter + downloads",
     },
-    unlocked: {
-      title: "All done",
-      subtitle: "Your professional resume is ready to download",
+    analyzing: {
+      title: "Analyzing your profile",
+      subtitle: "Our AI is crafting your recruiter-grade resume",
+    },
+    result: {
+      title: "Your resume is ready",
+      subtitle: "Download your professional resume and cover letter",
     },
   };
 
@@ -46,14 +43,12 @@ export default function AppPage() {
       <Header />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-10">
-        {/* Step indicator */}
         {step !== "analyzing" && (
           <div className="mb-8">
             <StepIndicator currentStep={step} />
           </div>
         )}
 
-        {/* Step header */}
         <AnimatePresence mode="wait">
           <motion.div
             key={step + "-header"}
@@ -71,7 +66,7 @@ export default function AppPage() {
                 <p className="text-sm text-ink-tertiary mt-1">{current.subtitle}</p>
               </div>
 
-              {(step === "preview" || step === "unlocked") && (
+              {step === "result" && (
                 <button
                   onClick={reset}
                   className="text-xs text-ink-tertiary hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-surface-2"
@@ -83,7 +78,6 @@ export default function AppPage() {
           </motion.div>
         </AnimatePresence>
 
-        {/* Step content */}
         <AnimatePresence mode="wait">
           {step === "upload" && (
             <motion.div
@@ -109,6 +103,18 @@ export default function AppPage() {
             </motion.div>
           )}
 
+          {step === "payment" && (
+            <motion.div
+              key="payment"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -16 }}
+              transition={{ duration: 0.25 }}
+            >
+              <PaymentGate />
+            </motion.div>
+          )}
+
           {step === "analyzing" && (
             <motion.div
               key="analyzing"
@@ -121,9 +127,9 @@ export default function AppPage() {
             </motion.div>
           )}
 
-          {(step === "preview" || step === "payment" || step === "unlocked") && (
+          {step === "result" && (
             <motion.div
-              key="preview"
+              key="result"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -16 }}

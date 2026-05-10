@@ -64,10 +64,9 @@ export interface Template {
 export type AppStep =
   | "upload"
   | "job-description"
-  | "analyzing"
-  | "preview"
   | "payment"
-  | "unlocked";
+  | "analyzing"
+  | "result";
 
 export interface AppState {
   step: AppStep;

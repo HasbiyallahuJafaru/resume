@@ -10,9 +10,7 @@ interface AppStore {
   resumeData: ResumeData | null;
   selectedTemplate: TemplateId;
   paymentReference: string | null;
-  unlockToken: string | null;
   sessionId: string;
-  isUnlocked: boolean;
   isGenerating: boolean;
   generatingStep: string;
   error: string | null;
@@ -23,11 +21,9 @@ interface AppStore {
   setResumeData: (data: ResumeData) => void;
   setSelectedTemplate: (template: TemplateId) => void;
   setPaymentReference: (ref: string) => void;
-  setUnlockToken: (token: string) => void;
   setIsGenerating: (state: boolean) => void;
   setGeneratingStep: (step: string) => void;
   setError: (error: string | null) => void;
-  unlock: (token: string) => void;
   reset: () => void;
 }
 
@@ -38,9 +34,7 @@ const initialState = {
   resumeData: null,
   selectedTemplate: "minimal-ats" as TemplateId,
   paymentReference: null,
-  unlockToken: null,
   sessionId: generateSessionId(),
-  isUnlocked: false,
   isGenerating: false,
   generatingStep: "",
   error: null,
@@ -57,17 +51,9 @@ export const useAppStore = create<AppStore>()(
       setResumeData: (resumeData) => set({ resumeData }),
       setSelectedTemplate: (selectedTemplate) => set({ selectedTemplate }),
       setPaymentReference: (paymentReference) => set({ paymentReference }),
-      setUnlockToken: (unlockToken) => set({ unlockToken }),
       setIsGenerating: (isGenerating) => set({ isGenerating }),
       setGeneratingStep: (generatingStep) => set({ generatingStep }),
       setError: (error) => set({ error }),
-
-      unlock: (token) =>
-        set({
-          unlockToken: token,
-          isUnlocked: true,
-          step: "unlocked",
-        }),
 
       reset: () =>
         set({
@@ -84,8 +70,6 @@ export const useAppStore = create<AppStore>()(
         resumeData: state.resumeData,
         selectedTemplate: state.selectedTemplate,
         sessionId: state.sessionId,
-        unlockToken: state.unlockToken,
-        isUnlocked: state.isUnlocked,
         step: state.step,
       }),
     }

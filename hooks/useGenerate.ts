@@ -69,13 +69,13 @@ export function useGenerate() {
 
       setResumeData(data.data as ResumeData);
       setGeneratingStep("Complete");
-      setStep("preview");
+      setStep("result");
       return true;
     } catch (err) {
       clearInterval(stepInterval);
       const message = err instanceof Error ? err.message : "Generation failed";
       setError(message);
-      setStep("job-description");
+      setStep("payment");
       return false;
     } finally {
       setIsGenerating(false);
