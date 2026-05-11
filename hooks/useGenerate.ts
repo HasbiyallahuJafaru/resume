@@ -16,10 +16,7 @@ const AI_STEPS = [
 
 export function useGenerate() {
   const {
-    rawCvText,
-    jobDescription,
-    sessionId,
-    setResumeData,
+    completeGeneration,
     setStep,
     setIsGenerating,
     setGeneratingStep,
@@ -27,6 +24,9 @@ export function useGenerate() {
   } = useAppStore();
 
   const generate = async (): Promise<boolean> => {
+    // Read fresh state at call time — avoids stale closure when called from Paystack callback
+    const { rawCvText, jobDescription, sessionId } = useAppStore.getState();
+
     if (!rawCvText || !jobDescription) {
       setError("Please provide both your CV and a job description.");
       return false;
@@ -67,9 +67,8 @@ export function useGenerate() {
 
       await sleep(600);
 
-      setResumeData(data.data as ResumeData);
       setGeneratingStep("Complete");
-      setStep("result");
+      completeGeneration(data.data as ResumeData);
       return true;
     } catch (err) {
       clearInterval(stepInterval);

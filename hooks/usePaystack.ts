@@ -68,6 +68,8 @@ export function usePaystack() {
       const reference = `rf_${sessionId}_${Date.now()}`;
       setPaymentReference(reference);
 
+      let paid = false;
+
       const handler = window.PaystackPop.setup({
         key: publicKey,
         email,
@@ -77,12 +79,12 @@ export function usePaystack() {
         label: "ResumeForge — Resume + Cover Letter",
         metadata: { sessionId, app: "resumeforge" },
         callback: (_response) => {
-          // Payment confirmed by Paystack — start AI generation immediately
+          paid = true;
           generate();
         },
         onClose: () => {
-          // User dismissed popup without paying — stay on payment step
-          setStep("payment");
+          // Only reset to payment if the user closed WITHOUT paying
+          if (!paid) setStep("payment");
         },
       });
 

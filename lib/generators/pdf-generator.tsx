@@ -1,17 +1,15 @@
 "use client";
 
+import React from "react";
 import { ResumeData, TemplateId } from "@/types";
 
 export async function generatePDF(
   data: ResumeData,
   template: TemplateId
 ): Promise<Blob> {
-  const { pdf, Document } = await import("@react-pdf/renderer");
-  const React = await import("react");
+  const { pdf } = await import("@react-pdf/renderer");
 
-  type DocComponent = React.ComponentType<{ data: ResumeData }>;
-
-  let DocComp: DocComponent;
+  let DocComp: React.ComponentType<{ data: ResumeData }>;
 
   switch (template) {
     case "executive":
@@ -24,12 +22,7 @@ export async function generatePDF(
       DocComp = (await import("@/templates/pdf/MinimalATSPDF")).default;
   }
 
-  // Each template returns a <Document> as its root, which satisfies react-pdf's pdf()
-  // We cast through unknown to satisfy the strict DocumentProps typing
-  const element = React.createElement(DocComp, { data }) as unknown as React.ReactElement<
-    React.ComponentProps<typeof Document>
-  >;
-
+  const element = React.createElement(DocComp, { data }) as unknown as React.ReactElement;
   const blob = await pdf(element).toBlob();
   return blob;
 }

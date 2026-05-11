@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { useAppStore } from "@/store/useAppStore";
 import Header from "@/components/layout/Header";
 import StepIndicator from "@/components/layout/StepIndicator";
@@ -11,7 +13,18 @@ import ResumePreview from "@/components/preview/ResumePreview";
 import PaymentGate from "@/components/payment/PaymentGate";
 
 export default function AppPage() {
+  const [mounted, setMounted] = useState(false);
+  const router = useRouter();
   const { step, reset } = useAppStore();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleStartOver = () => {
+    reset();
+    router.push("/app");
+  };
 
   const stepTitles: Record<string, { title: string; subtitle: string }> = {
     upload: {
@@ -36,22 +49,24 @@ export default function AppPage() {
     },
   };
 
-  const current = stepTitles[step] ?? stepTitles["upload"];
+  // Use "upload" on first server render to match SSR — swap to real step after mount
+  const currentStep = mounted ? step : "upload";
+  const current = stepTitles[currentStep] ?? stepTitles["upload"];
 
   return (
     <div className="min-h-screen bg-surface-1 flex flex-col">
       <Header />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-10">
-        {step !== "analyzing" && (
+        {currentStep !== "analyzing" && (
           <div className="mb-8">
-            <StepIndicator currentStep={step} />
+            <StepIndicator currentStep={currentStep} />
           </div>
         )}
 
         <AnimatePresence mode="wait">
           <motion.div
-            key={step + "-header"}
+            key={currentStep + "-header"}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
@@ -66,9 +81,9 @@ export default function AppPage() {
                 <p className="text-sm text-ink-tertiary mt-1">{current.subtitle}</p>
               </div>
 
-              {step === "result" && (
+              {currentStep === "result" && (
                 <button
-                  onClick={reset}
+                  onClick={handleStartOver}
                   className="text-xs text-ink-tertiary hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-surface-2"
                 >
                   Start over
@@ -79,7 +94,7 @@ export default function AppPage() {
         </AnimatePresence>
 
         <AnimatePresence mode="wait">
-          {step === "upload" && (
+          {currentStep === "upload" && (
             <motion.div
               key="upload"
               initial={{ opacity: 0, y: 16 }}
@@ -91,7 +106,7 @@ export default function AppPage() {
             </motion.div>
           )}
 
-          {step === "job-description" && (
+          {currentStep === "job-description" && (
             <motion.div
               key="job-description"
               initial={{ opacity: 0, y: 16 }}
@@ -103,7 +118,7 @@ export default function AppPage() {
             </motion.div>
           )}
 
-          {step === "payment" && (
+          {currentStep === "payment" && (
             <motion.div
               key="payment"
               initial={{ opacity: 0, y: 16 }}
@@ -115,7 +130,7 @@ export default function AppPage() {
             </motion.div>
           )}
 
-          {step === "analyzing" && (
+          {currentStep === "analyzing" && (
             <motion.div
               key="analyzing"
               initial={{ opacity: 0, scale: 0.98 }}
@@ -127,7 +142,7 @@ export default function AppPage() {
             </motion.div>
           )}
 
-          {step === "result" && (
+          {currentStep === "result" && (
             <motion.div
               key="result"
               initial={{ opacity: 0, y: 16 }}

@@ -19,6 +19,7 @@ interface AppStore {
   setRawCvText: (text: string) => void;
   setJobDescription: (jd: string) => void;
   setResumeData: (data: ResumeData) => void;
+  completeGeneration: (data: ResumeData) => void;
   setSelectedTemplate: (template: TemplateId) => void;
   setPaymentReference: (ref: string) => void;
   setIsGenerating: (state: boolean) => void;
@@ -49,6 +50,7 @@ export const useAppStore = create<AppStore>()(
       setRawCvText: (rawCvText) => set({ rawCvText }),
       setJobDescription: (jobDescription) => set({ jobDescription }),
       setResumeData: (resumeData) => set({ resumeData }),
+      completeGeneration: (resumeData) => set({ resumeData, step: "result" }),
       setSelectedTemplate: (selectedTemplate) => set({ selectedTemplate }),
       setPaymentReference: (paymentReference) => set({ paymentReference }),
       setIsGenerating: (isGenerating) => set({ isGenerating }),

@@ -1,11 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Component, ReactNode } from "react";
 import { motion } from "framer-motion";
 import { useAppStore } from "@/store/useAppStore";
 import { ResumeData, TemplateId } from "@/types";
 import { cn } from "@/lib/utils";
 import Button from "@/components/ui/Button";
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(err: Error) { return { error: err.message }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="p-8 text-center text-red-500 text-sm">
+          Failed to render resume: {this.state.error}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const TEMPLATES: { id: TemplateId; name: string }[] = [
   { id: "minimal-ats", name: "Minimal ATS" },
@@ -19,11 +34,7 @@ export default function ResumePreview() {
   if (!resumeData) return null;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="w-full max-w-5xl mx-auto"
-    >
+    <div className="w-full max-w-5xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h2 className="text-xl font-semibold text-ink">Your Resume is Ready</h2>
@@ -52,7 +63,9 @@ export default function ResumePreview() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
-          <ResumeDocument data={resumeData} />
+          <ErrorBoundary>
+            <ResumeDocument data={resumeData} />
+          </ErrorBoundary>
         </div>
 
         <div className="space-y-4">
@@ -60,7 +73,7 @@ export default function ResumePreview() {
           <SummaryChecklist />
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -92,7 +105,7 @@ function ResumeDocument({ data }: { data: ResumeData }) {
             Experience
           </h2>
           <div className="space-y-4">
-            {experience.map((job, i) => (
+            {(experience ?? []).map((job, i) => (
               <div key={i}>
                 <div className="flex justify-between items-start gap-2">
                   <div>
@@ -104,7 +117,7 @@ function ResumeDocument({ data }: { data: ResumeData }) {
                   </p>
                 </div>
                 <ul className="mt-2 space-y-1">
-                  {job.responsibilities.map((r, j) => (
+                  {(job.responsibilities ?? []).map((r, j) => (
                     <li key={j} className="text-xs text-ink-secondary flex gap-2">
                       <span className="text-ink-disabled shrink-0">•</span>
                       <span>{r}</span>
@@ -121,21 +134,21 @@ function ResumeDocument({ data }: { data: ResumeData }) {
             Skills
           </h2>
           <div className="space-y-1">
-            {skills.map((group, i) => (
+            {(skills ?? []).map((group, i) => (
               <div key={i} className="text-xs">
                 <span className="font-semibold text-ink">{group.category}: </span>
-                <span className="text-ink-secondary">{group.items.join(", ")}</span>
+                <span className="text-ink-secondary">{(group.items ?? []).join(", ")}</span>
               </div>
             ))}
           </div>
         </section>
 
-        {education && education.length > 0 && (
+        {education && (education ?? []).length > 0 && (
           <section>
             <h2 className="text-[10px] font-bold uppercase tracking-widest text-ink-tertiary mb-2">
               Education
             </h2>
-            {education.map((edu, i) => (
+            {(education ?? []).map((edu, i) => (
               <div key={i} className="flex justify-between">
                 <div>
                   <p className="text-sm font-semibold text-ink">
@@ -166,8 +179,14 @@ function ExportButtons() {
       const candidateName = (resumeData.candidate.name || "Resume").replace(/\s+/g, "_");
 
       if (type === "pdf") {
-        const { generatePDF, downloadBlob } = await import("@/lib/generators/pdf-generator");
-        const blob = await generatePDF(resumeData, selectedTemplate);
+        const res = await fetch("/api/pdf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: resumeData, template: selectedTemplate }),
+        });
+        if (!res.ok) throw new Error("PDF generation failed");
+        const blob = await res.blob();
+        const { downloadBlob } = await import("@/lib/generators/pdf-generator");
         downloadBlob(blob, `${candidateName}_Resume.pdf`);
       } else {
         const { generateDOCX } = await import("@/lib/generators/docx-generator");

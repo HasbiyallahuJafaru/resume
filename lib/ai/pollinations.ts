@@ -1,7 +1,7 @@
 import { ResumeData } from "@/types";
 import { SYSTEM_PROMPT, buildUserPrompt } from "./prompts";
 
-const BASE_URL = "https://text.pollinations.ai";
+const BASE_URL = "https://gen.pollinations.ai";
 const REFERRER = "atsresume.xyz";
 
 interface Message {
@@ -54,7 +54,7 @@ export async function generateResume(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${BASE_URL}/openai`, {
+  const response = await fetch(`${BASE_URL}/v1/chat/completions`, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
@@ -69,15 +69,6 @@ export async function generateResume(
   const envelope = (await response.json()) as OpenAIEnvelope;
 
   // Log in dev so we can see the raw shape if something goes wrong
-  if (process.env.NODE_ENV === "development") {
-    console.log("[pollinations] envelope keys:", Object.keys(envelope));
-    console.log("[pollinations] choices length:", envelope.choices?.length);
-    console.log(
-      "[pollinations] content preview:",
-      envelope.choices?.[0]?.message?.content?.slice(0, 200)
-    );
-  }
-
   // Extract content — try every known response shape
   const rawContent =
     envelope?.choices?.[0]?.message?.content ??
