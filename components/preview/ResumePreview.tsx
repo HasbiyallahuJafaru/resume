@@ -179,14 +179,8 @@ function ExportButtons() {
       const candidateName = (resumeData.candidate.name || "Resume").replace(/\s+/g, "_");
 
       if (type === "pdf") {
-        const res = await fetch("/api/pdf", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data: resumeData, template: selectedTemplate }),
-        });
-        if (!res.ok) throw new Error("PDF generation failed");
-        const blob = await res.blob();
-        const { downloadBlob } = await import("@/lib/generators/pdf-generator");
+        const { generatePDF, downloadBlob } = await import("@/lib/generators/pdf-generator");
+        const blob = await generatePDF(resumeData, selectedTemplate);
         downloadBlob(blob, `${candidateName}_Resume.pdf`);
       } else {
         const { generateDOCX } = await import("@/lib/generators/docx-generator");

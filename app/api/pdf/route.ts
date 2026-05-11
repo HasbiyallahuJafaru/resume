@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { pdf } from "@react-pdf/renderer";
-import React from "react";
 import { ResumeData, TemplateId } from "@/types";
 
 export const maxDuration = 60;
@@ -8,6 +6,13 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const { data, template }: { data: ResumeData; template: TemplateId } = await req.json();
+
+    // Dynamic import keeps @react-pdf/renderer out of the module-level bundle
+    const { pdf } = await import("@react-pdf/renderer");
+    const React = (await import("react")).default;
+
+    console.log("[pdf] pdf type:", typeof pdf);
+    console.log("[pdf] React type:", typeof React, typeof React.createElement);
 
     let DocComp: React.ComponentType<{ data: ResumeData }>;
 
@@ -22,8 +27,13 @@ export async function POST(req: NextRequest) {
         DocComp = (await import("@/templates/pdf/MinimalATSPDF")).default;
     }
 
+    console.log("[pdf] DocComp:", typeof DocComp, (DocComp as unknown as { name?: string })?.name);
+
     const element = React.createElement(DocComp, { data });
+    console.log("[pdf] element.type:", typeof element.type);
+
     const buffer = await pdf(element as React.ReactElement).toBuffer();
+    console.log("[pdf] buffer size:", buffer.length);
 
     return new NextResponse(buffer, {
       headers: {
